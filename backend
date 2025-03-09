@@ -21,4 +21,16 @@ public class CradleController {
     public ResponseEntity<SensorData> getLatestSensorData() {
         return ResponseEntity.ok(cradleService.getLatestSensorData());
     }
+
+    @PostMapping("/control/start")
+    public ResponseEntity<String> startCradleSwing() {
+        cradleService.startSwing();
+        return ResponseEntity.ok("Cradle swing started");
+    }
+
+    @PostMapping("/control/stop")
+    public ResponseEntity<String> stopCradleSwing() {
+        cradleService.stopSwing();
+        return ResponseEntity.ok("Cradle swing stopped");
+    }
 }
