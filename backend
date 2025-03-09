@@ -1,5 +1,17 @@
 package com.smartcradle;
 
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SmartCradleApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SmartCradleApplication.class, args);
+    }
+}
+
+package com.smartcradle;
+
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -33,4 +45,109 @@ public class CradleController {
         cradleService.stopSwing();
         return ResponseEntity.ok("Cradle swing stopped");
     }
+}
+
+package com.smartcradle;
+
+import org.springframework.stereotype.Service;
+import java.util.concurrent.atomic.AtomicReference;
+
+@Service
+public class CradleService {
+    private final AtomicReference<SensorData> latestSensorData = new AtomicReference<>(new SensorData());
+    private boolean isSwinging = false;
+
+    public void processSensorData(SensorData sensorData) {
+        latestSensorData.set(sensorData);
+    }
+
+    public SensorData getLatestSensorData() {
+        return latestSensorData.get();
+    }
+
+    public void startSwing() {
+        isSwinging = true;
+        System.out.println("Cradle swing started.");
+    }
+
+    public void stopSwing() {
+        isSwinging = false;
+        System.out.println("Cradle swing stopped.");
+    }
+}
+
+package com.smartcradle;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+@Entity
+public class SensorData {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private float humidity;
+    private float temperature;
+    private int analogValue;
+    private boolean isWet;
+
+    // Constructors
+    public SensorData() {}
+
+    public SensorData(float humidity, float temperature, int analogValue, boolean isWet) {
+        this.humidity = humidity;
+        this.temperature = temperature;
+        this.analogValue = analogValue;
+        this.isWet = isWet;
+    }
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public float getHumidity() {
+        return humidity;
+    }
+
+    public void setHumidity(float humidity) {
+        this.humidity = humidity;
+    }
+
+    public float getTemperature() {
+        return temperature;
+    }
+
+    public void setTemperature(float temperature) {
+        this.temperature = temperature;
+    }
+
+    public int getAnalogValue() {
+        return analogValue;
+    }
+
+    public void setAnalogValue(int analogValue) {
+        this.analogValue = analogValue;
+    }
+
+    public boolean isWet() {
+        return isWet;
+    }
+
+    public void setWet(boolean wet) {
+        isWet = wet;
+    }
+}
+
+package com.smartcradle;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface SensorDataRepository extends JpaRepository<SensorData, Long> {
 }
