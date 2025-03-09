@@ -1,0 +1,24 @@
+package com.smartcradle;
+
+import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+
+@RestController
+@RequestMapping("/api/cradle")
+public class CradleController {
+
+    @Autowired
+    private CradleService cradleService;
+
+    @PostMapping("/sensor")
+    public ResponseEntity<String> receiveSensorData(@RequestBody SensorData sensorData) {
+        cradleService.processSensorData(sensorData);
+        return ResponseEntity.ok("Sensor data received successfully");
+    }
+
+    @GetMapping("/sensor/latest")
+    public ResponseEntity<SensorData> getLatestSensorData() {
+        return ResponseEntity.ok(cradleService.getLatestSensorData());
+    }
+}
