@@ -12,11 +12,9 @@ POLL_INTERVAL = 1  # seconds
 
 # GPIO pins
 MUSIC_PIN = 18
-ARDUINO_POWER_PIN = 23  # NEW: GPIO pin controlling Arduino power (via relay/MOSFET)
 
-# GPIO devices
+# GPIO device
 music = DigitalOutputDevice(MUSIC_PIN)
-arduino_power = DigitalOutputDevice(ARDUINO_POWER_PIN)
 
 # Track last states to prevent redundant operations
 last_swing_status = None
@@ -46,14 +44,16 @@ def send_command_to_arduino(arduino, command):
             print(f"Failed to send command to Arduino: {e}")
 
 
-def power_on_arduino():
-    arduino_power.on()
-    print("Arduino power ON")
+def power_on_arduino(arduino):
+    """Send POWER_ON command to Arduino."""
+    send_command_to_arduino(arduino, "POWER_ON")
+    print("Sent POWER_ON to Arduino (soft control)")
 
 
-def power_off_arduino():
-    arduino_power.off()
-    print("Arduino power OFF")
+def power_off_arduino(arduino):
+    """Send POWER_OFF command to Arduino."""
+    send_command_to_arduino(arduino, "POWER_OFF")
+    print("Sent POWER_OFF to Arduino (soft control)")
 
 
 def update_controls(arduino, swing_status, music_status, arduino_power_state=None):
@@ -81,9 +81,9 @@ def update_controls(arduino, swing_status, music_status, arduino_power_state=Non
 
     if arduino_power_state is not None and arduino_power_state != last_power_status:
         if arduino_power_state:
-            power_on_arduino()
+            power_on_arduino(arduino)
         else:
-            power_off_arduino()
+            power_off_arduino(arduino)
         last_power_status = arduino_power_state
 
 
