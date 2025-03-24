@@ -12,9 +12,11 @@ POLL_INTERVAL = 1  # seconds
 
 # GPIO pins
 MUSIC_PIN = 18
+ARDUINO_POWER_PIN = 23  # NEW: GPIO pin controlling Arduino power (via relay/MOSFET)
 
-# GPIO device
+# GPIO devices
 music = DigitalOutputDevice(MUSIC_PIN)
+arduino_power = DigitalOutputDevice(ARDUINO_POWER_PIN)
 
 # Track last states to prevent redundant operations
 last_swing_status = None
@@ -44,16 +46,14 @@ def send_command_to_arduino(arduino, command):
             print(f"Failed to send command to Arduino: {e}")
 
 
-def power_on_arduino(arduino):
-    """Send POWER_ON command to Arduino."""
-    send_command_to_arduino(arduino, "POWER_ON")
-    print("Sent POWER_ON to Arduino (soft control)")
+def power_on_arduino():
+    arduino_power.on()
+    print("Arduino power ON")
 
 
-def power_off_arduino(arduino):
-    """Send POWER_OFF command to Arduino."""
-    send_command_to_arduino(arduino, "POWER_OFF")
-    print("Sent POWER_OFF to Arduino (soft control)")
+def power_off_arduino():
+    arduino_power.off()
+    print("Arduino power OFF")
 
 
 def update_controls(arduino, swing_status, music_status, arduino_power_state=None):
@@ -81,9 +81,9 @@ def update_controls(arduino, swing_status, music_status, arduino_power_state=Non
 
     if arduino_power_state is not None and arduino_power_state != last_power_status:
         if arduino_power_state:
-            power_on_arduino(arduino)
+            power_on_arduino()
         else:
-            power_off_arduino(arduino)
+            power_off_arduino()
         last_power_status = arduino_power_state
 
 
@@ -144,157 +144,3 @@ def start_firebase_thread(stop_event, arduino):
                 print(f"Firebase polling error: {e}")
             time.sleep(POLL_INTERVAL)
     return run
-=======
-package com.smartcradle;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class SmartCradleApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(SmartCradleApplication.class, args);
-    }
-}
-
-package com.smartcradle;
-
-import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-
-@RestController
-@RequestMapping("/api/cradle")
-public class CradleController {
-
-    @Autowired
-    private CradleService cradleService;
-
-    @PostMapping("/sensor")
-    public ResponseEntity<String> receiveSensorData(@RequestBody SensorData sensorData) {
-        cradleService.processSensorData(sensorData);
-        return ResponseEntity.ok("Sensor data received successfully");
-    }
-
-    @GetMapping("/sensor/latest")
-    public ResponseEntity<SensorData> getLatestSensorData() {
-        return ResponseEntity.ok(cradleService.getLatestSensorData());
-    }
-
-    @PostMapping("/control/start")
-    public ResponseEntity<String> startCradleSwing() {
-        cradleService.startSwing();
-        return ResponseEntity.ok("Cradle swing started");
-    }
-
-    @PostMapping("/control/stop")
-    public ResponseEntity<String> stopCradleSwing() {
-        cradleService.stopSwing();
-        return ResponseEntity.ok("Cradle swing stopped");
-    }
-}
-
-package com.smartcradle;
-
-import org.springframework.stereotype.Service;
-import java.util.concurrent.atomic.AtomicReference;
-
-@Service
-public class CradleService {
-    private final AtomicReference<SensorData> latestSensorData = new AtomicReference<>(new SensorData());
-    private boolean isSwinging = false;
-
-    public void processSensorData(SensorData sensorData) {
-        latestSensorData.set(sensorData);
-    }
-
-    public SensorData getLatestSensorData() {
-        return latestSensorData.get();
-    }
-
-    public void startSwing() {
-        isSwinging = true;
-        System.out.println("Cradle swing started.");
-    }
-
-    public void stopSwing() {
-        isSwinging = false;
-        System.out.println("Cradle swing stopped.");
-    }
-}
-
-package com.smartcradle;
-
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-
-@Entity
-public class SensorData {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private float humidity;
-    private float temperature;
-    private int analogValue;
-    private boolean isWet;
-
-    // Constructors
-    public SensorData() {}
-
-    public SensorData(float humidity, float temperature, int analogValue, boolean isWet) {
-        this.humidity = humidity;
-        this.temperature = temperature;
-        this.analogValue = analogValue;
-        this.isWet = isWet;
-    }
-
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public float getHumidity() {
-        return humidity;
-    }
-
-    public void setHumidity(float humidity) {
-        this.humidity = humidity;
-    }
-
-    public float getTemperature() {
-        return temperature;
-    }
-
-    public void setTemperature(float temperature) {
-        this.temperature = temperature;
-    }
-
-    public int getAnalogValue() {
-        return analogValue;
-    }
-
-    public void setAnalogValue(int analogValue) {
-        this.analogValue = analogValue;
-    }
-
-    public boolean isWet() {
-        return isWet;
-    }
-
-    public void setWet(boolean wet) {
-        isWet = wet;
-    }
-}
-
-package com.smartcradle;
-
-import org.springframework.data.jpa.repository.JpaRepository;
-
-public interface SensorDataRepository extends JpaRepository<SensorData, Long> {
-}
