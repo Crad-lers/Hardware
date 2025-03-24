@@ -1,0 +1,146 @@
+# sdgp.py
+
+import requests
+import time
+import serial
+import threading
+from gpiozero import DigitalOutputDevice
+
+# Configuration Constants
+FIREBASE_DB_URL = "https://cradlers-69c8b-default-rtdb.asia-southeast1.firebasedatabase.app/controls.json"
+POLL_INTERVAL = 1  # seconds
+
+# GPIO pins
+MUSIC_PIN = 18
+ARDUINO_POWER_PIN = 23  # NEW: GPIO pin controlling Arduino power (via relay/MOSFET)
+
+# GPIO devices
+music = DigitalOutputDevice(MUSIC_PIN)
+arduino_power = DigitalOutputDevice(ARDUINO_POWER_PIN)
+
+# Track last states to prevent redundant operations
+last_swing_status = None
+last_music_status = None
+last_power_status = None
+
+
+def init_arduino_connection(port='/dev/ttyACM0', baud_rate=9600):
+    """Initialize Arduino serial connection."""
+    try:
+        connection = serial.Serial(port, baud_rate, timeout=1)
+        time.sleep(2)
+        print("Serial connection to Arduino established.")
+        return connection
+    except Exception as e:
+        print(f"Failed to connect to Arduino: {e}")
+        return None
+
+
+def send_command_to_arduino(arduino, command):
+    """Send a string command to the Arduino over serial."""
+    if arduino and arduino.is_open:
+        try:
+            arduino.write((command + "\n").encode())
+            print(f"Command sent to Arduino: {command}")
+        except Exception as e:
+            print(f"Failed to send command to Arduino: {e}")
+
+
+def power_on_arduino():
+    arduino_power.on()
+    print("Arduino power ON")
+
+
+def power_off_arduino():
+    arduino_power.off()
+    print("Arduino power OFF")
+
+
+def update_controls(arduino, swing_status, music_status, arduino_power_state=None):
+    """Update swing motor, music, and Arduino power state."""
+    global last_swing_status, last_music_status, last_power_status
+
+    if swing_status != last_swing_status:
+        if swing_status == "ON":
+            send_command_to_arduino(arduino, "SWING_ON")
+        elif swing_status == "OFF":
+            send_command_to_arduino(arduino, "SWING_OFF")
+        elif swing_status == "SWING_AUTO":
+            send_command_to_arduino(arduino, "SWING_AUTO")
+        last_swing_status = swing_status
+
+    if music_status != last_music_status:
+        try:
+            if music_status:
+                music.on()
+            else:
+                music.off()
+            last_music_status = music_status
+        except Exception as e:
+            print(f"Error controlling music device: {e}")
+
+    if arduino_power_state is not None and arduino_power_state != last_power_status:
+        if arduino_power_state:
+            power_on_arduino()
+        else:
+            power_off_arduino()
+        last_power_status = arduino_power_state
+
+
+def update_firebase_sensor_data(humidity, temperature):
+    """Send sensor readings to Firebase."""
+    sensor_data = {
+        'humidity': humidity,
+        'temperature': temperature,
+        'timestamp': int(time.time())
+    }
+    sensor_data_url = FIREBASE_DB_URL.replace('controls.json', 'sensorData.json')
+    try:
+        response = requests.patch(sensor_data_url, json=sensor_data)
+        if response.ok:
+            print("Firebase updated successfully with sensor data")
+        else:
+            print(f"Failed to update Firebase: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"Error sending data to Firebase: {e}")
+
+
+def start_serial_thread(stop_event, arduino):
+    """Thread target: reads sensor data from serial and updates Firebase."""
+    def run():
+        print("Serial reading thread started.")
+        while not stop_event.is_set():
+            try:
+                if arduino and arduino.is_open and arduino.in_waiting > 0:
+                    line = arduino.readline().decode('utf-8').strip()
+                    if line.startswith("DHT,"):
+                        _, humidity, temperature = line.split(',')
+                        print(f"Temperature: {temperature} C, Humidity: {humidity} %")
+                        update_firebase_sensor_data(float(humidity), float(temperature))
+            except Exception as e:
+                print(f"Serial read error: {e}")
+                time.sleep(1)
+    return run
+
+
+def start_firebase_thread(stop_event, arduino):
+    """Thread target: polls Firebase and updates device controls."""
+    def run():
+        print("Firebase polling thread started.")
+        while not stop_event.is_set():
+            try:
+                response = requests.get(FIREBASE_DB_URL)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        swing_status = data.get("swing_status", "OFF")
+                        music_status = data.get("music_status", False)
+                        arduino_power_state = data.get("arduino_power", True)
+
+                        update_controls(arduino, swing_status, music_status, arduino_power_state)
+                else:
+                    print(f"Firebase error: {response.status_code}")
+            except Exception as e:
+                print(f"Firebase polling error: {e}")
+            time.sleep(POLL_INTERVAL)
+    return run
